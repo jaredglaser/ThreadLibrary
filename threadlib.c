@@ -3,16 +3,16 @@
 #include <sys/mman.h>
 #include "threadlib.h"
 #include <stdlib.h>
-tcb *running;
-tcb *ready;
+tcb *runningHead;
+tcb *readyHead;
 char func_stack[16384];
 int value = 0;
 
 void t_init(){
-  running = malloc(sizeof(tcb));
-  running->value = malloc(sizeof(ucontext_t));
-  ready = malloc(sizeof(tcb));
-  ready->value = malloc(sizeof(ucontext_t));
+  runningHead = malloc(sizeof(tcb));
+  runningHead->value = malloc(sizeof(ucontext_t));
+  readyHead = malloc(sizeof(tcb));
+  readyHead->value = malloc(sizeof(ucontext_t));
 
   
   
@@ -21,17 +21,17 @@ int main(int argc, char **argv)
 {
   t_init();
 
-  getcontext(running->value);    /* let back be the context of main() */
+  getcontext(runningHead->value);    /* let back be the context of main() */
    
 
-  getcontext(ready->value);
+  getcontext(readyHead->value);
 
-  ready->value->uc_stack.ss_sp = func_stack;
-  ready->value->uc_stack.ss_size = sizeof(func_stack);
+  readyHead->value->uc_stack.ss_sp = func_stack;
+  readyHead->value->uc_stack.ss_size = sizeof(func_stack);
 
-  ready->value->uc_link = running->value; 
+  readyHead->value->uc_link = runningHead->value; 
 
-  makecontext(ready->value, (void (*)(void)) assign, 2, 107L, &value);
+  makecontext(readyHead->value, (void (*)(void)) assign, 2, 107L, &value);
   
 
   printf("in main(): 0\n");
@@ -48,15 +48,28 @@ int main(int argc, char **argv)
 
   return (0);
 }
+/*
+* Put the current running process at the end of the queue 
+*/
 void t_yield()
 {
-  struct node *tmp;
+  tcb *temp;
 
-  tmp = running;
-  running = ready;
-  ready = tmp;
-
-  swapcontext(ready->value, running->value);
+  temp = runningHead; 
+  runningHead = readyHead;
+  readyHead = readyHead->next;
+  //insert tmp to end of ready queue
+  if(readyHead == NULL){
+      readyHead = temp;
+  }
+  else{
+      tcb *tmp = readyHead;
+  while(tmp->next !=NULL){
+      tmp = tmp->next;
+  }
+    tmp->next = temp; //move runningHead to the end of the ready queue
+  }
+  swapcontext(readyHead->value, runningHead->value);
 }
 
 void assign(long a, int *b)
