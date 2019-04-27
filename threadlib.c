@@ -3,15 +3,15 @@
 #include <sys/mman.h>
 #include "threadlib.h"
 #include <stdlib.h>
-struct node *running;
-struct node *ready;
+tcb *running;
+tcb *ready;
 char func_stack[16384];
 int value = 0;
 
 void t_init(){
-  running = malloc(sizeof(struct node));
+  running = malloc(sizeof(tcb));
   running->value = malloc(sizeof(ucontext_t));
-  ready = malloc(sizeof(struct node));
+  ready = malloc(sizeof(tcb));
   ready->value = malloc(sizeof(ucontext_t));
 
   
@@ -20,7 +20,7 @@ void t_init(){
 int main(int argc, char **argv) 
 {
   t_init();
-  
+
   getcontext(running->value);    /* let back be the context of main() */
    
 
