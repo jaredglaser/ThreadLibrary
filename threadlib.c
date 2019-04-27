@@ -1,21 +1,62 @@
 #include <stdio.h>
 #include <ucontext.h>
 #include <sys/mman.h>
+#include "threadlib.h"
+#include <stdlib.h>
+struct node *running;
+struct node *ready;
+char func_stack[16384];
+int value = 0;
 
-ucontext_t uc, back;
+void t_init(){
+  running = malloc(sizeof(struct node));
+  running->value = malloc(sizeof(ucontext_t));
+  ready = malloc(sizeof(struct node));
+  ready->value = malloc(sizeof(ucontext_t));
 
-ucontext_t *running;
-ucontext_t *ready;
+  
+  
+}
+int main(int argc, char **argv) 
+{
+  t_init();
+  
+  getcontext(running->value);    /* let back be the context of main() */
+   
 
+  getcontext(ready->value);
+
+  ready->value->uc_stack.ss_sp = func_stack;
+  ready->value->uc_stack.ss_size = sizeof(func_stack);
+
+  ready->value->uc_link = running->value; 
+
+  makecontext(ready->value, (void (*)(void)) assign, 2, 107L, &value);
+  
+
+  printf("in main(): 0\n");
+
+  t_yield();
+
+  printf("in main(): 1\n");
+  t_yield();
+
+  printf("in main(): 2\n");
+  t_yield();
+
+  printf("done %d\n", value);
+
+  return (0);
+}
 void t_yield()
 {
-  ucontext_t *tmp;
+  struct node *tmp;
 
   tmp = running;
   running = ready;
   ready = tmp;
 
-  swapcontext(ready, running);
+  swapcontext(ready->value, running->value);
 }
 
 void assign(long a, int *b)
@@ -36,39 +77,6 @@ void assign(long a, int *b)
 
   for (i = 20; i < 23; i++)
     printf("in assign(3): %d\n", i);
-}
-
-int main(int argc, char **argv) 
-{
-  char func_stack[16384];
-  int value = 0;
-
-  getcontext(&back);    /* let back be the context of main() */
-  running = &back;
-
-  getcontext(&uc);
-
-  uc.uc_stack.ss_sp = func_stack;
-  uc.uc_stack.ss_size = sizeof(func_stack);
-
-  uc.uc_link = &back; 
-
-  makecontext(&uc, (void (*)(void)) assign, 2, 107L, &value);
-  ready = &uc;
-
-  printf("in main(): 0\n");
-
-  t_yield();
-
-  printf("in main(): 1\n");
-  t_yield();
-
-  printf("in main(): 2\n");
-  t_yield();
-
-  printf("done %d\n", value);
-
-  return (0);
 }
 
 
