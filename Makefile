@@ -3,7 +3,7 @@ CC=gcc
 #CC=gcc -Wall
 
 threadTest: threadlib.o 
-	$(CC) -g threadlib.o -o threadTest 
+	$(CC) -g main.c threadlib.o -o threadTest 
 
 
 threadlib.o: threadlib.c threadlib.h

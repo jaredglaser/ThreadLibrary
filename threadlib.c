@@ -3,50 +3,19 @@
 #include <sys/mman.h>
 #include "threadlib.h"
 #include <stdlib.h>
-tcb *runningHead;
-tcb *readyHead;
+tcb *runningHead = NULL;
+tcb *readyHead = NULL;
 char func_stack[16384];
 int value = 0;
 
 void t_init(){
   runningHead = malloc(sizeof(tcb));
   runningHead->value = malloc(sizeof(ucontext_t));
-  readyHead = malloc(sizeof(tcb));
-  readyHead->value = malloc(sizeof(ucontext_t));
-
-  
-  
+  runningHead->thread_id = 0;
+  getcontext(runningHead->value);    // let back be the context of main() 
 }
-int main(int argc, char **argv) 
-{
-  t_init();
-
-  getcontext(runningHead->value);    /* let back be the context of main() */
-   
-
-  getcontext(readyHead->value);
-
-  readyHead->value->uc_stack.ss_sp = func_stack;
-  readyHead->value->uc_stack.ss_size = sizeof(func_stack);
-
-  readyHead->value->uc_link = runningHead->value; 
-
-  makecontext(readyHead->value, (void (*)(void)) assign, 2, 107L, &value);
-  
-
-  printf("in main(): 0\n");
-
-  t_yield();
-
-  printf("in main(): 1\n");
-  t_yield();
-
-  printf("in main(): 2\n");
-  t_yield();
-
-  printf("done %d\n", value);
-
-  return (0);
+void t_shutdown(){
+    
 }
 /*
 * Put the current running process at the end of the queue 
@@ -57,7 +26,10 @@ void t_yield()
 
   temp = runningHead; 
   runningHead = readyHead;
-  readyHead = readyHead->next;
+  if(readyHead->next == NULL){
+      readyHead = NULL;
+  }
+  //readyHead = readyHead->next;
   //insert tmp to end of ready queue
   if(readyHead == NULL){
       readyHead = temp;
@@ -65,11 +37,61 @@ void t_yield()
   else{
       tcb *tmp = readyHead;
   while(tmp->next !=NULL){
+      // printf("id:%d \n",tmp->thread_id);
       tmp = tmp->next;
   }
     tmp->next = temp; //move runningHead to the end of the ready queue
+    tmp->next->next = NULL;
+    readyHead = readyHead->next; //increment readyHead
   }
+
+  printf("running: %p\n",runningHead->value);
+  tcb *a = readyHead;
+  int i = 0;
+  while(a != NULL){
+  printf("ready:%p[%d]\n",a->value,i);
+  i++;
+  a = a->next;
+  }
+
+
   swapcontext(readyHead->value, runningHead->value);
+}
+
+void t_terminate(){
+    tcb *toDelete = runningHead;
+    runningHead = readyHead; //put first ready process as the running process
+    readyHead = readyHead->next; //move the next ready process up in the queue
+    free(toDelete->value);
+    free(toDelete);
+    ucontext_t temp;
+    swapcontext(&temp, runningHead->value);
+
+}
+
+int t_create(void (*func)(int), int thr_id, int pri){
+  tcb *newproc = malloc(sizeof(tcb));
+  newproc->value = malloc(sizeof(ucontext_t));
+  getcontext(newproc->value);
+  newproc->value->uc_stack.ss_sp = func_stack;
+  newproc->value->uc_stack.ss_size = sizeof(func_stack);
+  newproc->value->uc_link = newproc->value; 
+  //set up thr_id and pri
+  newproc->thread_id = thr_id;
+  newproc->thread_priority = pri;
+  makecontext(newproc->value, (void (*)(void)) func,1, thr_id);
+  if(readyHead == NULL){
+      readyHead = newproc;
+  }
+  else{//add to the end of the queue
+    tcb *temp = readyHead;
+    while(temp->next != NULL){
+        temp = temp -> next;
+    }
+    temp->next = newproc;
+    temp->next->next = NULL;
+  }
+
 }
 
 void assign(long a, int *b)
