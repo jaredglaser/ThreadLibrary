@@ -5,7 +5,7 @@
 #include <stdlib.h>
 tcb *runningHead = NULL;
 tcb *readyHead = NULL;
-char func_stack[16384];
+
 int value = 0;
 
 void t_init(){
@@ -53,9 +53,10 @@ void t_yield()
   i++;
   a = a->next;
   }
+  
 
 
-  swapcontext(readyHead->value, runningHead->value);
+  swapcontext(temp->value, runningHead->value);
 }
 
 void t_terminate(){
@@ -64,17 +65,17 @@ void t_terminate(){
     readyHead = readyHead->next; //move the next ready process up in the queue
     free(toDelete->value);
     free(toDelete);
-    ucontext_t temp;
-    swapcontext(&temp, runningHead->value);
-
+    setcontext(runningHead->value);
 }
 
 int t_create(void (*func)(int), int thr_id, int pri){
+  size_t sz = 0x10000;
+  // char func_stack[16384];
   tcb *newproc = malloc(sizeof(tcb));
   newproc->value = malloc(sizeof(ucontext_t));
   getcontext(newproc->value);
-  newproc->value->uc_stack.ss_sp = func_stack;
-  newproc->value->uc_stack.ss_size = sizeof(func_stack);
+  newproc->value->uc_stack.ss_sp = malloc(sz);;
+  newproc->value->uc_stack.ss_size = sz;
   newproc->value->uc_link = newproc->value; 
   //set up thr_id and pri
   newproc->thread_id = thr_id;
