@@ -24,6 +24,9 @@ void t_yield()
 {
   tcb *temp;
 
+  if(readyHead == NULL){ //there is only one thread that is yielding
+    return;
+  }
   temp = runningHead; 
   runningHead = readyHead;
   if(readyHead->next == NULL){
