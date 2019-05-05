@@ -15,7 +15,22 @@ void t_init(){
   getcontext(runningHead->value);    // let back be the context of main() 
 }
 void t_shutdown(){
-    
+    tcb *temp = runningHead;
+    while(runningHead !=NULL){
+      temp = temp->next;
+      free(runningHead->value->uc_stack.ss_sp);
+      free(runningHead->value);
+      free(runningHead);
+      runningHead = temp;
+    }
+    temp = readyHead;
+    while(readyHead !=NULL){
+      temp = temp->next;
+      free(readyHead->value->uc_stack.ss_sp);
+      free(readyHead->value);
+      free(readyHead);
+      readyHead = temp;
+    }
 }
 /*
 * Put the current running process at the end of the queue 
@@ -55,6 +70,7 @@ void t_terminate(){
     tcb *toDelete = runningHead;
     runningHead = readyHead; //put first ready process as the running process
     readyHead = readyHead->next; //move the next ready process up in the queue
+    free(toDelete->value->uc_stack.ss_sp);
     free(toDelete->value);
     free(toDelete);
     setcontext(runningHead->value);
