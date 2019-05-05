@@ -45,19 +45,6 @@ void t_yield()
     readyHead = readyHead->next; //increment readyHead
   }
 
-/*
-  printf("running: %p\n",runningHead->value);
-  tcb *a = readyHead;
-  int i = 0;
-  while(a != NULL){
-  printf("ready:%p[%d]\n",a->value,i);
-  i++;
-  a = a->next;
-  
-  }
-  */
-
-
   swapcontext(temp->value, runningHead->value);
 }
 
@@ -96,41 +83,3 @@ int t_create(void (*func)(int), int thr_id, int pri){
   }
 
 }
-/*
-void assign(long a, int *b)
-{
-  int i;
-
-  *b = (int)a;
-
-  for (i = 0; i < 3; i++)
-    printf("in assign(1): %d\n", i);
-
-  t_yield();
-
-  for (i = 10; i < 13; i++)
-    printf("in assign(2): %d\n", i);
-
-  t_yield();
-
-  for (i = 20; i < 23; i++)
-    printf("in assign(3): %d\n", i);
-}
-*/
-
-
-/* --- output -----
-in main(): 0
-in assign(1): 0
-in assign(1): 1
-in assign(1): 2
-in main(): 1
-in assign(2): 10
-in assign(2): 11
-in assign(2): 12
-in main(): 2
-in assign(3): 20
-in assign(3): 21
-in assign(3): 22
-done 107
-*/
