@@ -3,6 +3,8 @@
 #include <sys/mman.h>
 #include "threadlib.h"
 #include <stdlib.h>
+#include <signal.h>
+
 tcb *runningHead = NULL;
 tcb *readyHead = NULL;
 
@@ -101,4 +103,59 @@ int t_create(void (*func)(int), int thr_id, int pri){
     temp->next->next = NULL;
   }
 
+}
+
+int sem_init(sem_t **sp, int sem_count){
+  *sp = malloc(sizeof(sem_t));
+  (*sp)->count = sem_count;
+  (*sp)->q = NULL;
+}
+void sem_wait(sem_t *sp){
+  sighold();
+  sp->count--;
+  tcb* temp = sp->q;
+  if(sp->count < 0){
+    //add the current running tcb to the end of the semaphores queue
+    if(sp->q == NULL){
+      sp->q = runningHead;
+      temp = runningHead ;
+    }
+    else{
+      while(temp->next != NULL){
+        temp= temp->next;
+      }
+      temp->next = runningHead;
+    }
+    //put ready head as running head
+    tcb* old = runningHead;
+    runningHead = readyHead;
+    readyHead = readyHead->next;
+    runningHead->next = NULL;
+    swapcontext(old->value,runningHead->value);  
+    
+  }
+  sigrelse();
+}
+void sem_signal(sem_t *sp){
+  sighold();
+  sp->count++;
+  if(sp->count <=0 && sp->q != NULL){
+    tcb* temp = readyHead;
+    //iterate through the ready queue
+    while(temp->next != NULL){
+      temp = temp->next;
+    }
+    //append on the first blocked thread
+    tcb* blocked = sp->q;
+    temp->next = blocked;
+    //iterate semephore queue
+    sp->q = sp->q->next;
+    sigrelse();
+  }
+  else{
+  sigrelse();
+  }
+}
+void sem_destroy(sem_t **sp){
+  free(sp);
 }

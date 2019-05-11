@@ -1,76 +1,118 @@
-
+#include "ud_thread.h"
 #include <stdio.h>
-#include "threadlib.h"
+#include <stdlib.h>
+#include <time.h>
 
-void function(int thr_id) 
+#define TIME_TO_EAT 3
+#define PHILOSOPHERS 5
+static sem_t *forks[PHILOSOPHERS];
+int eaten = 0;
+
+sem_t *lock;
+int forkInUse[PHILOSOPHERS];
+
+void philosopher(int id)
 {
-    ucontext_t temp;
-   getcontext(&temp);
-   //printf("CURRENT:%p\n",&temp);
+        int right = id;
+        int left = (id+1)%PHILOSOPHERS;
 
-   int i, j; 
+        printf("Philosopher %d is hungry\n", id);
+        if (id % 2 == 0)
+        {
+                sem_wait(forks[right]);
+                sem_wait(lock);
+                if (forkInUse[right])
+                {
+                        printf("ERROR: fork %d is being used\n", right);
+                        exit(0);
+                }
+                forkInUse[right] = 1;
+                sem_signal(lock);
+                printf("Philosopher %d has picked up right fork %d\n", id, id);
 
-   for (i = j = 0; i < 3; i++, j++) {
-      printf("this is thread %d [%d]...\n", thr_id, j);
-      t_yield();
-   }
+                sem_wait(forks[left]);
+                sem_wait(lock);
+                if (forkInUse[left])
+                {
+                        printf("ERROR: fork %d is being used\n", left);
+                        exit(0);
+                }
+                forkInUse[left] = 1;
+                sem_signal(lock);
+                printf("Philosopher %d has picked up left  fork %d\n", id, left);
+        }
+        else
+        {
+                sem_wait(forks[(id+1)%PHILOSOPHERS]);
+                printf("Philosopher %d has picked up left  fork %d\n", id, (id+1)%PHILOSOPHERS);
+                sem_wait(forks[id]);
+                printf("Philosopher %d has picked up right fork %d\n", id, id);
+        }
 
-   printf("Thread %d is done...\n", thr_id);
-   t_terminate();
+        int i = 0;
+        for (; i < TIME_TO_EAT; i++)
+        {
+                t_yield();
+                printf("Philosopher %d is still eating\n", id);
+        }
+
+
+        sem_signal(forks[id]);
+        sem_signal(forks[(id+1)%PHILOSOPHERS]);
+
+        printf("Philosopher %d has eaten\n", id);
+        sem_wait(lock);
+
+        forkInUse[left] = 0;
+        forkInUse[right] = 0;
+        eaten++;
+        sem_signal(lock);
+
+        t_terminate();
 }
 
-int main(void)
+int main()
 {
-   int i;
+        int i;
+        srand(time(NULL));
 
-   t_init();
-   t_create(function, 1, 1);
-   printf("This is main(1)...\n");
-   t_create(function, 2, 1);
-   printf("This is main(2)...\n");
-   t_create(function, 3, 1);
+        t_init();
+        sem_init(&lock, 1);
 
-   for (i = 0; i < 4; i++) {
-      printf("This is main(3)[%d]...\n", i);
-      t_yield();
-   }
+        //  Create a semaphore for each fork
+        for (i = 0; i < PHILOSOPHERS; i++)
+        {
+                sem_init(&forks[i], 1);
+        }
 
-   printf("Begin shutdown...\n");
-   t_shutdown();
-   printf("Done with shutdown...\n");
+        //  Randomize the order the philosophers are created in
+        int order[PHILOSOPHERS];
+        for (i = 0; i < PHILOSOPHERS; i++)
+                order[i] = i;
 
-   return 0;
+        for (i = 0; i < 20; i++)
+        {
+                int s1 = rand() % PHILOSOPHERS;
+                int s2 = rand() % PHILOSOPHERS;
+                int tmp = order[s2];
+                order[s2] = order[s1];
+                order[s1] = tmp;
+        }
+
+        for (i = 0; i < PHILOSOPHERS; i++)
+        {
+                t_create(philosopher, order[i], 1);
+        }
+
+        //  Wait for all philosophers to eat
+        while (eaten != PHILOSOPHERS)
+                t_yield();
+
+        //  Clean up all data
+        for (i = 0; i < PHILOSOPHERS; i++)
+        {
+                sem_destroy(&forks[i]);
+        }
+        sem_destroy(&lock);
+        t_shutdown();
 }
-
-/*int main(int argc, char **argv) 
-{
-  t_init();
-
-  getcontext(runningHead->value);    // let back be the context of main() 
-   
-
-  //getcontext(readyHead->value);
-
-  //readyHead->value->uc_stack.ss_sp = func_stack;
-  //readyHead->value->uc_stack.ss_size = sizeof(func_stack);
-
-  //readyHead->value->uc_link = runningHead->value; 
-
-  //makecontext(readyHead->value, (void (*)(void)) assign, 2, 107L, &value);
-  t_create((void (*)(int))assign,1,1);
-
-  printf("in main(): 0\n");
-
-  t_yield();
-
-  printf("in main(): 1\n");
-  t_yield();
-
-  printf("in main(): 2\n");
-  t_yield();
-
-  printf("done %d\n", value);
-
-  return (0);
-}
-*/
