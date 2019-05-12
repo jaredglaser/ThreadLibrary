@@ -38,35 +38,23 @@ void t_shutdown(){
 * Put the current running process at the end of the queue 
 */
 void t_yield()
-{
-  tcb *temp;
-
-  if(readyQueue == NULL){ //there is only one thread that is yielding
-    return;
+{ 
+  tcb *runningHead = runningQueue;
+  tcb *readyHead = readyQueue;
+  tcb *tmp = readyQueue;
+  runningHead->next = NULL;
+  //printf("%d\n", ready->thread_id);
+  if(tmp != NULL) {
+  while (tmp->next) {
+     tmp = tmp->next;
   }
-  temp = runningQueue; 
+  tmp->next = runningHead;
   runningQueue = readyQueue;
-  if(readyQueue->next == NULL){
-      readyQueue = NULL;
+  readyQueue = readyQueue->next;
+  swapcontext(runningHead->value, runningQueue->value);
   }
-  //readyQueue = readyQueue->next;
-  //insert tmp to end of ready queue
-  if(readyQueue == NULL){
-      readyQueue = temp;
-  }
-  else{
-      tcb *tmp = readyQueue;
-  while(tmp->next !=NULL){
-      // printf("id:%d \n",tmp->thread_id);
-      tmp = tmp->next;
-  }
-    tmp->next = temp; //move runningQueue to the end of the ready queue
-    tmp->next->next = NULL;
-    readyQueue = readyQueue->next; //increment readyQueue
-  }
-
-  swapcontext(temp->value, runningQueue->value);
 }
+
 
 void t_terminate(){
     tcb *toDelete = runningQueue;
@@ -114,7 +102,7 @@ int sem_init(sem_t **sp, int sem_count){
 
 
 void sem_wait(sem_t *sp){
-  //sighold();
+  sighold();
   sp->count--;
   tcb* temp = sp->q;
   if(runningQueue != NULL){
@@ -132,7 +120,7 @@ void sem_wait(sem_t *sp){
         temp= temp->next;
       }
       temp->next = runningQueue;
-      temp->next->next = NULL;
+      //temp->next->next = NULL;
     }
     //put ready head as running head
     tcb* old = runningQueue;
@@ -143,10 +131,10 @@ void sem_wait(sem_t *sp){
     swapcontext(old->value,runningQueue->value);  
     }
   }
-  //sigrelse();
+  sigrelse();
 }
 void sem_signal(sem_t *sp){
-  //sighold();
+  sighold();
   sp->count++;
   if(sp->count <=0 && sp->q != NULL){
     tcb* temp = readyQueue;
@@ -169,9 +157,9 @@ void sem_signal(sem_t *sp){
       sp->q = sp->q->next;
     }
   }
-  else{
-  //sigrelse();
-  }
+  
+  sigrelse();
+  
 }
 
 
