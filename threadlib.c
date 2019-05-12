@@ -5,33 +5,33 @@
 #include <stdlib.h>
 #include <signal.h>
 
-tcb *runningHead = NULL;
-tcb *readyHead = NULL;
+tcb *runningQueue = NULL;
+tcb *readyQueue = NULL;
 
 int value = 0;
 
 void t_init(){
-  runningHead = malloc(sizeof(tcb));
-  runningHead->value = malloc(sizeof(ucontext_t));
-  runningHead->thread_id = 0;
-  getcontext(runningHead->value);    // let back be the context of main() 
+  runningQueue = malloc(sizeof(tcb));
+  runningQueue->value = malloc(sizeof(ucontext_t));
+  runningQueue->thread_id = 0;
+  getcontext(runningQueue->value);    // let back be the context of main() 
 }
 void t_shutdown(){
-    tcb *temp = runningHead;
-    while(runningHead !=NULL){
+    tcb *temp = runningQueue;
+    while(runningQueue !=NULL){
       temp = temp->next;
-      free(runningHead->value->uc_stack.ss_sp);
-      free(runningHead->value);
-      free(runningHead);
-      runningHead = temp;
+      free(runningQueue->value->uc_stack.ss_sp);
+      free(runningQueue->value);
+      free(runningQueue);
+      runningQueue = temp;
     }
-    temp = readyHead;
-    while(readyHead !=NULL){
+    temp = readyQueue;
+    while(readyQueue !=NULL){
       temp = temp->next;
-      free(readyHead->value->uc_stack.ss_sp);
-      free(readyHead->value);
-      free(readyHead);
-      readyHead = temp;
+      free(readyQueue->value->uc_stack.ss_sp);
+      free(readyQueue->value);
+      free(readyQueue);
+      readyQueue = temp;
     }
 }
 /*
@@ -41,41 +41,41 @@ void t_yield()
 {
   tcb *temp;
 
-  if(readyHead == NULL){ //there is only one thread that is yielding
+  if(readyQueue == NULL){ //there is only one thread that is yielding
     return;
   }
-  temp = runningHead; 
-  runningHead = readyHead;
-  if(readyHead->next == NULL){
-      readyHead = NULL;
+  temp = runningQueue; 
+  runningQueue = readyQueue;
+  if(readyQueue->next == NULL){
+      readyQueue = NULL;
   }
-  //readyHead = readyHead->next;
+  //readyQueue = readyQueue->next;
   //insert tmp to end of ready queue
-  if(readyHead == NULL){
-      readyHead = temp;
+  if(readyQueue == NULL){
+      readyQueue = temp;
   }
   else{
-      tcb *tmp = readyHead;
+      tcb *tmp = readyQueue;
   while(tmp->next !=NULL){
       // printf("id:%d \n",tmp->thread_id);
       tmp = tmp->next;
   }
-    tmp->next = temp; //move runningHead to the end of the ready queue
+    tmp->next = temp; //move runningQueue to the end of the ready queue
     tmp->next->next = NULL;
-    readyHead = readyHead->next; //increment readyHead
+    readyQueue = readyQueue->next; //increment readyQueue
   }
 
-  swapcontext(temp->value, runningHead->value);
+  swapcontext(temp->value, runningQueue->value);
 }
 
 void t_terminate(){
-    tcb *toDelete = runningHead;
-    runningHead = readyHead; //put first ready process as the running process
-    readyHead = readyHead->next; //move the next ready process up in the queue
+    tcb *toDelete = runningQueue;
+    runningQueue = readyQueue; //put first ready process as the running process
+    readyQueue = readyQueue->next; //move the next ready process up in the queue
     free(toDelete->value->uc_stack.ss_sp);
     free(toDelete->value);
     free(toDelete);
-    setcontext(runningHead->value);
+    setcontext(runningQueue->value);
 }
 
 int t_create(void (*func)(int), int thr_id, int pri){
@@ -91,11 +91,11 @@ int t_create(void (*func)(int), int thr_id, int pri){
   newproc->thread_id = thr_id;
   newproc->thread_priority = pri;
   makecontext(newproc->value, (void (*)(void)) func,1, thr_id);
-  if(readyHead == NULL){
-      readyHead = newproc;
+  if(readyQueue == NULL){
+      readyQueue = newproc;
   }
   else{//add to the end of the queue
-    tcb *temp = readyHead;
+    tcb *temp = readyQueue;
     while(temp->next != NULL){
         temp = temp -> next;
     }
@@ -110,52 +110,76 @@ int sem_init(sem_t **sp, int sem_count){
   (*sp)->count = sem_count;
   (*sp)->q = NULL;
 }
+
+
+
 void sem_wait(sem_t *sp){
-  sighold();
+  //sighold();
   sp->count--;
   tcb* temp = sp->q;
+  if(runningQueue != NULL){
+    runningQueue->next = NULL;
+  }
   if(sp->count < 0){
     //add the current running tcb to the end of the semaphores queue
     if(sp->q == NULL){
-      sp->q = runningHead;
-      temp = runningHead ;
+      sp->q = runningQueue;
+      sp->q->next = NULL;
+      temp = runningQueue ;
     }
     else{
       while(temp->next != NULL){
         temp= temp->next;
       }
-      temp->next = runningHead;
+      temp->next = runningQueue;
+      temp->next->next = NULL;
     }
     //put ready head as running head
-    tcb* old = runningHead;
-    runningHead = readyHead;
-    readyHead = readyHead->next;
-    runningHead->next = NULL;
-    swapcontext(old->value,runningHead->value);  
-    
+    tcb* old = runningQueue;
+    if(readyQueue != NULL){
+    runningQueue = readyQueue;
+    readyQueue = readyQueue->next;
+    runningQueue->next = NULL;
+    swapcontext(old->value,runningQueue->value);  
+    }
   }
-  sigrelse();
+  //sigrelse();
 }
 void sem_signal(sem_t *sp){
-  sighold();
+  //sighold();
   sp->count++;
   if(sp->count <=0 && sp->q != NULL){
-    tcb* temp = readyHead;
-    //iterate through the ready queue
-    while(temp->next != NULL){
-      temp = temp->next;
+    tcb* temp = readyQueue;
+    if(temp != NULL){ 
+      //iterate through the ready queue
+      while(temp->next != NULL){
+        temp = temp->next;
+      }
+      //append on the first blocked thread
+      //tcb* blocked = sp->q;
+      temp->next = sp->q;
+      temp->next->next = NULL;
+      //iterate semephore queue
+      sp->q = sp->q->next;
+      //sigrelse();
     }
-    //append on the first blocked thread
-    tcb* blocked = sp->q;
-    temp->next = blocked;
-    //iterate semephore queue
-    sp->q = sp->q->next;
-    sigrelse();
+    else{ //ready Queue was null so we set sp->q as ready Queue
+      readyQueue = sp->q;
+      readyQueue->next = NULL;
+      sp->q = sp->q->next;
+    }
   }
   else{
-  sigrelse();
+  //sigrelse();
   }
 }
+
+
+
+
+
+
+
 void sem_destroy(sem_t **sp){
-  free(sp);
+  //free(sp);
 }

@@ -1,118 +1,86 @@
-#include "ud_thread.h"
+/* 
+ * Test Program #3 - Semaphore
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include "ud_thread.h"
 
-#define TIME_TO_EAT 3
-#define PHILOSOPHERS 5
-static sem_t *forks[PHILOSOPHERS];
-int eaten = 0;
+sem_t *s;
+int resource = 0;
 
-sem_t *lock;
-int forkInUse[PHILOSOPHERS];
-
-void philosopher(int id)
+void read_function(int val) 
 {
-        int right = id;
-        int left = (id+1)%PHILOSOPHERS;
+   long i, j ;
+   int res_before, res_after;
 
-        printf("Philosopher %d is hungry\n", id);
-        if (id % 2 == 0)
-        {
-                sem_wait(forks[right]);
-                sem_wait(lock);
-                if (forkInUse[right])
-                {
-                        printf("ERROR: fork %d is being used\n", right);
-                        exit(0);
-                }
-                forkInUse[right] = 1;
-                sem_signal(lock);
-                printf("Philosopher %d has picked up right fork %d\n", id, id);
+   for (i = 0; i < 5; i++) {
+      printf("I am READ thread %d (%d)\n", val, i);
 
-                sem_wait(forks[left]);
-                sem_wait(lock);
-                if (forkInUse[left])
-                {
-                        printf("ERROR: fork %d is being used\n", left);
-                        exit(0);
-                }
-                forkInUse[left] = 1;
-                sem_signal(lock);
-                printf("Philosopher %d has picked up left  fork %d\n", id, left);
-        }
-        else
-        {
-                sem_wait(forks[(id+1)%PHILOSOPHERS]);
-                printf("Philosopher %d has picked up left  fork %d\n", id, (id+1)%PHILOSOPHERS);
-                sem_wait(forks[id]);
-                printf("Philosopher %d has picked up right fork %d\n", id, id);
-        }
+      sem_wait(s);
+            
+      res_before = resource;
+      printf("  [%d READ %d] resource = %d\n", val, i, resource);
 
-        int i = 0;
-        for (; i < TIME_TO_EAT; i++)
-        {
-                t_yield();
-                printf("Philosopher %d is still eating\n", id);
-        }
+      t_yield();
+      printf("  ** [%d READ %d] returns from t_yield()\n", val, i);
+      res_after = resource;
 
+      if (res_before != res_after) {
 
-        sem_signal(forks[id]);
-        sem_signal(forks[(id+1)%PHILOSOPHERS]);
+         fprintf(stderr, "[THREAD %d] error in the semaphore program \n", val);
+         exit(-1);
+      }
 
-        printf("Philosopher %d has eaten\n", id);
-        sem_wait(lock);
+      sem_signal(s);
+   }
 
-        forkInUse[left] = 0;
-        forkInUse[right] = 0;
-        eaten++;
-        sem_signal(lock);
-
-        t_terminate();
+   t_terminate () ;
 }
 
-int main()
+void write_function(int val) 
 {
-        int i;
-        srand(time(NULL));
+   long i, j ;
 
-        t_init();
-        sem_init(&lock, 1);
+   for (i = 0; i < 5; i++) {
+      printf("I am WRITE thread %d (%d)\n", val, i);
 
-        //  Create a semaphore for each fork
-        for (i = 0; i < PHILOSOPHERS; i++)
-        {
-                sem_init(&forks[i], 1);
-        }
+      sem_wait(s);
+            
+      resource = rand() % 100;      
+      printf("  [%d WRITE %d] resource = %d\n", val, i, resource);
 
-        //  Randomize the order the philosophers are created in
-        int order[PHILOSOPHERS];
-        for (i = 0; i < PHILOSOPHERS; i++)
-                order[i] = i;
+      sem_signal(s);
 
-        for (i = 0; i < 20; i++)
-        {
-                int s1 = rand() % PHILOSOPHERS;
-                int s2 = rand() % PHILOSOPHERS;
-                int tmp = order[s2];
-                order[s2] = order[s1];
-                order[s1] = tmp;
-        }
+      t_yield();
+   }
 
-        for (i = 0; i < PHILOSOPHERS; i++)
-        {
-                t_create(philosopher, order[i], 1);
-        }
+   t_terminate();
+}
 
-        //  Wait for all philosophers to eat
-        while (eaten != PHILOSOPHERS)
-                t_yield();
+int main(void) {
 
-        //  Clean up all data
-        for (i = 0; i < PHILOSOPHERS; i++)
-        {
-                sem_destroy(&forks[i]);
-        }
-        sem_destroy(&lock);
-        t_shutdown();
+   int i;
+
+   t_init();
+   sem_init(&s, 1);
+
+   t_create(write_function, 1, 1);
+   t_create(write_function, 2, 1);
+   t_create(read_function, 11, 1);
+   t_create(read_function, 22, 1);
+   t_create(write_function, 3, 1);
+   t_create(write_function, 4, 1);
+   t_create(read_function, 33, 1);
+   t_create(read_function, 44, 1);
+  
+   for (i = 0; i < 60; i++) {
+      printf("I am main thread (%d)...\n", i);
+      t_yield();
+   }
+
+   sem_destroy(&s);
+   t_shutdown();
+
+   return 0;
 }
