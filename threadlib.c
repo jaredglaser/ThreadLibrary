@@ -10,164 +10,167 @@ tcb *readyQueue = NULL;
 
 int value = 0;
 
-void t_init(){
+void t_init()
+{
   runningQueue = malloc(sizeof(tcb));
   runningQueue->value = malloc(sizeof(ucontext_t));
   runningQueue->thread_id = 0;
-  getcontext(runningQueue->value);    // let back be the context of main() 
+  getcontext(runningQueue->value); // let back be the context of main()
 }
-void t_shutdown(){
-    tcb *temp = runningQueue;
-    while(runningQueue !=NULL){
-      temp = temp->next;
-      free(runningQueue->value->uc_stack.ss_sp);
-      free(runningQueue->value);
-      free(runningQueue);
-      runningQueue = temp;
-    }
-    temp = readyQueue;
-    while(readyQueue !=NULL){
-      temp = temp->next;
-      free(readyQueue->value->uc_stack.ss_sp);
-      free(readyQueue->value);
-      free(readyQueue);
-      readyQueue = temp;
-    }
+void t_shutdown()
+{
+  tcb *temp = runningQueue;
+  while (runningQueue != NULL)
+  {
+    temp = temp->next;
+    free(runningQueue->value->uc_stack.ss_sp);
+    free(runningQueue->value);
+    free(runningQueue);
+    runningQueue = temp;
+  }
+  temp = readyQueue;
+  while (readyQueue != NULL)
+  {
+    temp = temp->next;
+    free(readyQueue->value->uc_stack.ss_sp);
+    free(readyQueue->value);
+    free(readyQueue);
+    readyQueue = temp;
+  }
 }
 /*
 * Put the current running process at the end of the queue 
 */
 void t_yield()
-{ 
+{
   tcb *runningHead = runningQueue;
-  tcb *readyHead = readyQueue;
-  tcb *tmp = readyQueue;
-  runningHead->next = NULL;
-  //printf("%d\n", ready->thread_id);
-  if(tmp != NULL) {
-  while (tmp->next) {
-     tmp = tmp->next;
-  }
-  tmp->next = runningHead;
-  runningQueue = readyQueue;
-  readyQueue = readyQueue->next;
-  swapcontext(runningHead->value, runningQueue->value);
+  tcb *temp = readyQueue;
+  runningHead->next = NULL; //needs to be done or weird loops happen
+  if (temp != NULL)
+  {
+    while (temp->next)
+    {
+      temp = temp->next;
+    }
+    temp->next = runningHead; //add current running thread to the end of the ready queue
+    runningQueue = readyQueue; //make the running thread the head of the ready queue
+    readyQueue = readyQueue->next; //iterate ready queue
+    swapcontext(runningHead->value, runningQueue->value); //swap em
   }
 }
 
-
-void t_terminate(){
-    tcb *toDelete = runningQueue;
-    runningQueue = readyQueue; //put first ready process as the running process
-    readyQueue = readyQueue->next; //move the next ready process up in the queue
-    free(toDelete->value->uc_stack.ss_sp);
-    free(toDelete->value);
-    free(toDelete);
-    setcontext(runningQueue->value);
+void t_terminate()
+{
+  tcb *toDelete = runningQueue;
+  runningQueue = readyQueue;     //put first ready process as the running process
+  readyQueue = readyQueue->next; //move the next ready process up in the queue
+  free(toDelete->value->uc_stack.ss_sp);
+  free(toDelete->value);
+  free(toDelete);
+  setcontext(runningQueue->value);
 }
 
-int t_create(void (*func)(int), int thr_id, int pri){
+int t_create(void (*func)(int), int thr_id, int pri)
+{
   size_t sz = 0x10000;
   // char func_stack[16384];
   tcb *newproc = malloc(sizeof(tcb));
   newproc->value = malloc(sizeof(ucontext_t));
   getcontext(newproc->value);
-  newproc->value->uc_stack.ss_sp = malloc(sz);;
+  newproc->value->uc_stack.ss_sp = malloc(sz);
+  ;
   newproc->value->uc_stack.ss_size = sz;
-  newproc->value->uc_link = newproc->value; 
+  newproc->value->uc_link = newproc->value;
   //set up thr_id and pri
   newproc->thread_id = thr_id;
   newproc->thread_priority = pri;
-  makecontext(newproc->value, (void (*)(void)) func,1, thr_id);
-  if(readyQueue == NULL){
-      readyQueue = newproc;
+  makecontext(newproc->value, (void (*)(void))func, 1, thr_id);
+  if (readyQueue == NULL)
+  {
+    readyQueue = newproc;
   }
-  else{//add to the end of the queue
+  else
+  { //add to the end of the queue
     tcb *temp = readyQueue;
-    while(temp->next != NULL){
-        temp = temp -> next;
+    while (temp->next != NULL)
+    {
+      temp = temp->next;
     }
     temp->next = newproc;
     temp->next->next = NULL;
   }
-
 }
 
-int sem_init(sem_t **sp, int sem_count){
+int sem_init(sem_t **sp, int sem_count)
+{
   *sp = malloc(sizeof(sem_t));
   (*sp)->count = sem_count;
   (*sp)->q = NULL;
 }
 
-
-
-void sem_wait(sem_t *sp){
+void sem_wait(sem_t *sp)
+{
   sighold();
   sp->count--;
-  tcb* temp = sp->q;
-  if(runningQueue != NULL){
-    runningQueue->next = NULL;
+  tcb *runningHead = runningQueue;
+
+  if (runningHead != NULL)
+  {
+    runningHead->next = NULL;
   }
-  if(sp->count < 0){
-    //add the current running tcb to the end of the semaphores queue
-    if(sp->q == NULL){
-      sp->q = runningQueue;
-      sp->q->next = NULL;
-      temp = runningQueue ;
+  if (sp->count < 0)
+  {
+    if (sp->q == NULL)
+    { //then give it an initial value of the current running thread
+      sp->q = runningHead;
     }
-    else{
-      while(temp->next != NULL){
-        temp= temp->next;
-      }
-      temp->next = runningQueue;
-      //temp->next->next = NULL;
-    }
-    //put ready head as running head
-    tcb* old = runningQueue;
-    if(readyQueue != NULL){
-    runningQueue = readyQueue;
-    readyQueue = readyQueue->next;
-    runningQueue->next = NULL;
-    swapcontext(old->value,runningQueue->value);  
-    }
-  }
-  sigrelse();
-}
-void sem_signal(sem_t *sp){
-  sighold();
-  sp->count++;
-  if(sp->count <=0 && sp->q != NULL){
-    tcb* temp = readyQueue;
-    if(temp != NULL){ 
-      //iterate through the ready queue
-      while(temp->next != NULL){
+    else
+    { //then add the current running thread to the end of the semaphore queue
+      tcb *temp = sp->q;
+      while (temp->next)
+      {
         temp = temp->next;
       }
-      //append on the first blocked thread
-      //tcb* blocked = sp->q;
-      temp->next = sp->q;
-      temp->next->next = NULL;
-      //iterate semephore queue
-      sp->q = sp->q->next;
-      //sigrelse();
+      temp->next = runningHead;
     }
-    else{ //ready Queue was null so we set sp->q as ready Queue
-      readyQueue = sp->q;
-      readyQueue->next = NULL;
-      sp->q = sp->q->next;
+    if(readyQueue !=NULL){
+    runningQueue = readyQueue;     //put current running thread as ready thread
+    
+      readyQueue = readyQueue->next; //then iterate the ready queue
+    swapcontext(runningHead->value, runningQueue->value);
     }
   }
-  
   sigrelse();
-  
 }
 
+void sem_signal(sem_t *sp)
+{
+  sighold();
+  sp->count++;
+  if (sp->count <= 0)
+  {
+    tcb *sem = sp->q;
+    sp->q = sp->q->next; //iterate the head of the semaphore queue since we saved it in sem
+    if (sem != NULL)
+    {
+      sem->next = NULL;
+    }
+    tcb *temp = readyQueue;
+    if(temp!=NULL){
+    while (temp->next) 
+    {
+      temp = temp->next;
+    }
+    temp->next = sem; //add the head of the semaphore queue to the end of the ready queue
+    }
+    else{
+      readyQueue = sem;
+    }
+    sigrelse();
+  }
+}
 
-
-
-
-
-
-void sem_destroy(sem_t **sp){
+void sem_destroy(sem_t **sp)
+{
   //free(sp);
 }
