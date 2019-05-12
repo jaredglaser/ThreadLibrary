@@ -172,5 +172,5 @@ void sem_signal(sem_t *sp)
 
 void sem_destroy(sem_t **sp)
 {
-  //free(sp);
+  free(*sp);
 }
