@@ -174,3 +174,28 @@ void sem_destroy(sem_t **sp)
 {
   free(*sp);
 }
+
+/* 
+*Create a mailbox pointed to by mb.
+ */
+int mbox_create(mbox **mb){
+
+} 
+/* 
+* Destroy any state related to the mailbox pointed to by mb.
+ */
+void mbox_destroy(mbox **mb){
+
+}
+/* 
+* Deposit message msg of length len into the mailbox pointed to by mb. 
+*/
+void mbox_deposit(mbox *mb, char *msg, int len){
+
+}
+ /* 
+ * Withdraw the first message from the mailbox pointed to by mb into msg and set the message's length in len accordingly
+ */
+ void mbox_withdraw(mbox *mb, char *msg, int *len){
+   
+ }
