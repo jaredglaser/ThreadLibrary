@@ -24,7 +24,7 @@ struct messageNode
   int receiver;             // TID of receiver thread
   struct messageNode *next; // pointer to next node
 };
-
+typedef struct messageNode messageNode;
 typedef struct
 {
   struct messageNode *msg; // message queue

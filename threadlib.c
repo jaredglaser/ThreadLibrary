@@ -4,6 +4,7 @@
 #include "threadlib.h"
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 
 tcb *runningQueue = NULL;
 tcb *readyQueue = NULL;
@@ -179,23 +180,56 @@ void sem_destroy(sem_t **sp)
 *Create a mailbox pointed to by mb.
  */
 int mbox_create(mbox **mb){
-
+   *mb = malloc(sizeof(mbox));
+   (*mb)->msg = NULL;
+   (*mb)->mbox_sem = NULL;
 } 
 /* 
 * Destroy any state related to the mailbox pointed to by mb.
  */
 void mbox_destroy(mbox **mb){
-
+  //TODO: add implementation
 }
 /* 
 * Deposit message msg of length len into the mailbox pointed to by mb. 
 */
 void mbox_deposit(mbox *mb, char *msg, int len){
-
+  /*
+  * Set up the messageNode to be added to the mailbox
+  */
+  messageNode *node = malloc(sizeof(messageNode));
+  node->len = len;
+   node->message = malloc((sizeof(char)*len) + 1); //malloc space for the char arr
+   strcpy(node->message,msg); //copy it in
+   node->next = NULL; //next should be null since it will added to the end
+  node->sender = runningQueue->thread_id; //sender is current thread. Reciever will be added later
+  /*
+  * Add the messageNode to the mailbox
+  */
+  if(mb->msg == NULL){ //add the message to the head
+    mb->msg = node;
+  }
+  else{ //we need to add it to the end
+    messageNode *temp = mb->msg; 
+    while(temp->next != NULL){
+      temp = temp->next;
+    }
+    temp -> next = node; //add it to the end
+  }
 }
  /* 
  * Withdraw the first message from the mailbox pointed to by mb into msg and set the message's length in len accordingly
  */
  void mbox_withdraw(mbox *mb, char *msg, int *len){
-   
+   //get the first message, which should be the head
+   if(mb->msg == NULL){
+     *len = 0;
+     return;
+   }
+   else{
+     messageNode *node = mb->msg;
+     strcpy(msg,node->message); //put the message into the char pointer
+     *len = node->len; //give len the correct value
+     mb->msg = mb->msg->next; //iterate the queue
+   }
  }
