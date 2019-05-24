@@ -8,7 +8,6 @@
 
 tcb *runningQueue = NULL;
 tcb *readyQueue = NULL;
-
 mbox *messageQueue;
 
 int value = 0;
@@ -42,6 +41,19 @@ void t_shutdown()
     free(readyQueue->value);
     free(readyQueue);
     readyQueue = temp;
+  }
+
+  temp = messageQueue;
+  while (messageQueue != NULL){
+    temp = temp->next;
+    free(messageQueue->mbox_sem);
+    if(messageQueue->msg->message != NULL){
+    //free(messageQueue->msg->message);
+    }
+    free(messageQueue->msg);
+    free(messageQueue);
+    messageQueue = temp;
+
   }
 }
 /*
@@ -198,7 +210,9 @@ int mbox_create(mbox **mb)
  */
 void mbox_destroy(mbox **mb)
 {
-  //TODO: add implementation
+  free((*mb)->msg->message);
+  sem_destroy((*mb)->mbox_sem);
+  free(mb);
 }
 /* 
 * Deposit message msg of length len into the mailbox pointed to by mb. 
